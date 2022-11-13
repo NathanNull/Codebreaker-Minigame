@@ -1,11 +1,9 @@
 import socket as sock
 import select
 import errno
-from config import port
+from config import port, HEADERSIZE
 import pickle
 import sys
-
-HEADERSIZE = 10
 
 class Client:
     def __init__(self):
@@ -16,32 +14,28 @@ class Client:
         
         s.setblocking(False)
         
-        username = uname.encode('utf-8')
-        username_header = f"{len(username):<{HEADERSIZE}}".encode('utf-8')
-        s.send(username_header+username)
         self.sock = s
+        self.send(uname)
 
-    def send(self, msg):
-        if msg:
-            msg = msg.encode('utf-8')
-            msg_head = f"{len(msg):<{HEADERSIZE}}".encode('utf-8')
-            self.sock.send(msg_head + msg)
+    def send(self, msg:str):
+        """Send a message"""
+        msg = msg.encode('utf-8')
+        msg_head = f"{len(msg):<{HEADERSIZE}}".encode('utf-8')
+        self.sock.send(msg_head + msg)
 
-    def recv(self):
+    def recv(self) -> list[bytes]:
+        """Get all messages that have been recieved since last checked"""
         msgs = []
         try:
             while True:
-                username_header = self.sock.recv(HEADERSIZE)
-                if not len(username_header):
+                msg_header = self.sock.recv(HEADERSIZE)
+                if not len(msg_header):
                     print("Connection closed by server")
                     sys.exit()
-                uname_length = int(username_header.decode('utf-8').strip())
-                username = self.sock.recv(uname_length).decode('utf-8')
-    
-                msg_header = self.sock.recv(HEADERSIZE)
+
                 msg_length = int(msg_header.decode('utf-8').strip())
                 message = self.sock.recv(msg_length).decode('utf-8')
-                msgs.append([username, message])
+                msgs.append(message)
         except IOError as e:
             if e.errno not in [errno.EAGAIN, errno.EWOULDBLOCK]:
                 print(f'Reading error {e}')
@@ -50,3 +44,10 @@ class Client:
         except Exception as e:
             print(f'Reading error {e}')
             sys.exit()
+    
+    def wait_recv(self) -> list[bytes]:
+        """Wait until there are messages to get, then return them"""
+        msgs = []
+        while len(msgs) == 0:
+            msgs = self.recv()
+        return msgs
