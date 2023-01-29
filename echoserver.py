@@ -1,11 +1,10 @@
 import socket as sock
 import select
 from config import port, HEADERSIZE
-import pickle
 import uuid
 
 class EchoServer:
-    def __init__(self, addr = ("localhost", port)):
+    def __init__(self, addr = ("localhost", port), silent=False):
         s = sock.socket(sock.AF_INET, sock.SOCK_STREAM)
         s.setsockopt(sock.SOL_SOCKET, sock.SO_REUSEADDR, 1)
         s.bind(addr)
@@ -15,6 +14,10 @@ class EchoServer:
         self.sockets_list = [s]
         self.clients = {}
         self.unames = {}
+
+        if not silent:
+            print(f"Server online at {addr[0]}:{addr[1]}")
+        self.silent = silent
 
     def recv_msg(self, client: sock.socket):
         try:
@@ -30,7 +33,7 @@ class EchoServer:
         msg_head = f"{len(msg):<{HEADERSIZE}}".encode('utf-8')
         client.send(msg_head + msg)
     
-    def nameof(self, client: sock.socket | uuid.UUID) -> str:
+    def nameof(self, client: 'sock.socket | uuid.UUID') -> str:
         if isinstance(client, sock.socket):
             client = self.clients[client]
         return self.unames[client]
@@ -56,7 +59,8 @@ class EchoServer:
                     # Recieving message from preexisting client
                     message = self.recv_msg(notified_socket)
                     if message is False:
-                        print(f"Closed connection from {self.nameof(notified_socket)}")
+                        if not self.silent:
+                            print(f"Closed connection from {self.nameof(notified_socket)}")
                         self.sockets_list.remove(notified_socket)
                         del self.unames[self.clients[notified_socket]]
                         del self.clients[notified_socket]
@@ -71,9 +75,10 @@ class EchoServer:
                 self.handle_disconnect(notified_socket)
     
     def handle_msg(self, client:sock.socket, message: bytes):
-        print(
-            f"Recieved from {self.nameof(client)}: {message.decode('utf-8')}"
-        )
+        if not self.silent:
+            print(
+                f"Recieved from {self.nameof(client)}: {message.decode('utf-8')}"
+            )
         for other_client in self.clients:
             if other_client != client:
                 user = self.clients[client]
@@ -81,7 +86,8 @@ class EchoServer:
                 self.send_msg(other_client, message)
     
     def handle_connect(self, client:sock.socket, addr: str, user_data:bytes):
-        print(f"accepted from {addr}, uname: {user_data.decode('utf-8')}")
+        if not self.silent:
+            print(f"accepted from {addr}, uname: {user_data.decode('utf-8')}")
     
     def handle_disconnect(self, client: sock.socket):
         pass
